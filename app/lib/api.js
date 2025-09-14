@@ -1,3 +1,5 @@
+import { encode } from 'base-64';
+
 let accessToken = null;
 let refreshToken = null;
 
@@ -32,7 +34,7 @@ export const refreshAuthToken = async () => {
         'Authorization': `Basic ${base64Credentials}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: `refresh_token=${refreshToken}&grant_type=refresh_token`,
+      body: `grant_type=refresh_token&refresh_token=${refreshToken}`,
     });
     
     const data = await response.json();
@@ -51,7 +53,7 @@ export const refreshAuthToken = async () => {
 
 export const apiRequest = async (endpoint, options = {}) => {
   if (!accessToken) {
-    throw new Error('No access token available');
+    throw new Error('No access token available. Please connect to the API first.');
   }
 
   const defaultOptions = {
@@ -128,6 +130,7 @@ export const clinicalApi = {
   getPatientSummary: (patientId) => apiRequest(`patients/${patientId}/summary`),
   // Add more clinical endpoints as needed
 };
+
 export const logout = () => {
   accessToken = null;
   refreshToken = null;
@@ -136,4 +139,9 @@ export const logout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
   }
+};
+
+// Check if we have a valid token
+export const isAuthenticated = () => {
+  return !!accessToken;
 };

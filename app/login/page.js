@@ -2,52 +2,39 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+// import { setTokens } from '@/lib/api';
+import { setTokens } from '../lib/api';
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({
-    username: '',
-    password: ''
-  });
   const router = useRouter();
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleLogin = async () => {
     setIsLoading(true);
     setError('');
 
     try {
-      // First, get an access token using the provided credentials
-      const authResponse = await fetch('/api/auth/login', {
+      // Use client credentials flow to get access token directly
+      const response = await fetch('/api/auth/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
       });
 
-      const authData = await authResponse.json();
+      const data = await response.json();
 
-      if (!authResponse.ok) {
-        throw new Error(authData.error || 'Authentication failed');
+      if (!response.ok) {
+        throw new Error(data.error || 'Authentication failed');
       }
 
       // Store tokens and redirect to dashboard
-      localStorage.setItem('access_token', authData.access_token);
-      localStorage.setItem('refresh_token', authData.refresh_token);
-      
+      setTokens(data.access_token, data.refresh_token);
       router.push('/dashboard');
     } catch (error) {
       console.error('Login error:', error);
-      setError(error.message || 'Login failed. Please check your credentials and VPN connection.');
+      setError(error.message || 'Authentication failed. Please check your VPN connection.');
     } finally {
       setIsLoading(false);
     }
@@ -61,54 +48,35 @@ export default function Login() {
             EHR Integration Dashboard
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Sign in to access DrChrono data
+            Access DrChrono EHR Data
           </p>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-              {error}
-            </div>
-          )}
-          
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="username" className="sr-only">Username</label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Username"
-                value={formData.username}
-                onChange={handleChange}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">Password</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-                value={formData.password}
-                onChange={handleChange}
-              />
-            </div>
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+            {error}
           </div>
-
+        )}
+        
+        <div className="mt-8 space-y-6">
           <div>
             <button
-              type="submit"
+              onClick={handleLogin}
               disabled={isLoading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
-              {isLoading ? 'Signing in...' : 'Sign in'}
+              {isLoading ? 'Connecting...' : 'Connect to DrChrono API'}
             </button>
+          </div>
+          
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
+            <div className="flex">
+              <div className="ml-3">
+                <p className="text-sm text-blue-700">
+                  <strong>API Authentication:</strong> Using client credentials to access DrChrono sandbox environment.
+                </p>
+              </div>
+            </div>
           </div>
           
           <div className="text-center">
@@ -121,19 +89,7 @@ export default function Login() {
               Use the provided ProtonVPN credentials to connect to a US server first
             </p>
           </div>
-          
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-            <div className="flex">
-              <div className="ml-3">
-                <p className="text-sm text-yellow-700">
-                  <strong>Demo Credentials:</strong><br />
-                  Username: saumikattackcap<br />
-                  Password: 8Ghq*C#26VcKhr#
-                </p>
-              </div>
-            </div>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );

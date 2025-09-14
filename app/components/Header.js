@@ -22,7 +22,7 @@ export default function Header() {
             onClick={handleLogout}
             className="text-gray-600 hover:text-gray-800"
           >
-            Logout
+            Disconnect
           </button>
         </div>
       </div>

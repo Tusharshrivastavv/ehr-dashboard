@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { patientsApi, appointmentsApi } from '@/lib/api';
 
 export default function Dashboard() {
@@ -11,18 +10,11 @@ export default function Dashboard() {
     recentAppointments: []
   });
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // Check if user is authenticated
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
     fetchData();
-  }, [router]);
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -38,13 +30,15 @@ export default function Dashboard() {
         appointments: appointmentsData.results?.length || 0,
         recentAppointments: appointmentsData.results?.slice(0, 5) || []
       });
+      setError('');
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setError('Failed to fetch data. Please check your connection and VPN.');
+      
       if (error.message.includes('401') || error.message.includes('403')) {
         // Token expired or invalid
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        router.push('/login');
       }
     } finally {
       setLoading(false);
@@ -62,6 +56,12 @@ export default function Dashboard() {
   return (
     <div>
       <h1 className="text-2xl font-semibold text-gray-800 mb-6">Dashboard</h1>
+      
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow p-6">
