@@ -1,11 +1,52 @@
-import { refreshAuthToken } from './auth';
-
 let accessToken = null;
 let refreshToken = null;
 
 export const setTokens = (newAccessToken, newRefreshToken) => {
   accessToken = newAccessToken;
   refreshToken = newRefreshToken;
+  
+  // Also store in localStorage for persistence
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('access_token', newAccessToken);
+    localStorage.setItem('refresh_token', newRefreshToken);
+  }
+};
+
+// Initialize tokens from localStorage on client side
+if (typeof window !== 'undefined') {
+  accessToken = localStorage.getItem('access_token');
+  refreshToken = localStorage.getItem('refresh_token');
+}
+
+export const refreshAuthToken = async () => {
+  const clientId = process.env.DRCHRONO_CLIENT_ID;
+  const clientSecret = process.env.DRCHRONO_CLIENT_SECRET;
+  
+  const credentials = `${clientId}:${clientSecret}`;
+  const base64Credentials = encode(credentials);
+  
+  try {
+    const response = await fetch('https://drchrono.com/o/token/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${base64Credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `refresh_token=${refreshToken}&grant_type=refresh_token`,
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      setTokens(data.access_token, data.refresh_token);
+      return data;
+    } else {
+      throw new Error(data.error_description || 'Token refresh failed');
+    }
+  } catch (error) {
+    console.error('Error refreshing auth token:', error);
+    throw error;
+  }
 };
 
 export const apiRequest = async (endpoint, options = {}) => {
@@ -26,14 +67,19 @@ export const apiRequest = async (endpoint, options = {}) => {
     const response = await fetch(`https://drchrono.com/api/${endpoint}`, config);
     
     if (response.status === 401 && refreshToken) {
-
-      const newTokens = await refreshAuthToken(refreshToken);
+      // Token expired, try to refresh
+      const newTokens = await refreshAuthToken();
       accessToken = newTokens.access_token;
       refreshToken = newTokens.refresh_token;
       
+      // Retry the request with the new token
       config.headers.Authorization = `Bearer ${accessToken}`;
       const retryResponse = await fetch(`https://drchrono.com/api/${endpoint}`, config);
       return await retryResponse.json();
+    }
+    
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
     
     return await response.json();
@@ -43,8 +89,12 @@ export const apiRequest = async (endpoint, options = {}) => {
   }
 };
 
+// Patient-related API calls
 export const patientsApi = {
-  list: (params = {}) => apiRequest('patients', { params }),
+  list: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`patients${queryString ? `?${queryString}` : ''}`);
+  },
   get: (id) => apiRequest(`patients/${id}`),
   update: (id, data) => apiRequest(`patients/${id}`, {
     method: 'PATCH',
@@ -56,8 +106,12 @@ export const patientsApi = {
   }),
 };
 
+// Appointment-related API calls
 export const appointmentsApi = {
-  list: (params = {}) => apiRequest('appointments', { params }),
+  list: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`appointments${queryString ? `?${queryString}` : ''}`);
+  },
   get: (id) => apiRequest(`appointments/${id}`),
   update: (id, data) => apiRequest(`appointments/${id}`, {
     method: 'PATCH',
@@ -69,6 +123,17 @@ export const appointmentsApi = {
   }),
 };
 
+// Clinical data API calls
 export const clinicalApi = {
   getPatientSummary: (patientId) => apiRequest(`patients/${patientId}/summary`),
+  // Add more clinical endpoints as needed
+};
+export const logout = () => {
+  accessToken = null;
+  refreshToken = null;
+  
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  }
 };

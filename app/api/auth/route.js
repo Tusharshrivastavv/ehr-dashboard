@@ -1,27 +1,52 @@
-import { getAuthToken } from '@/lib/auth';
-import { setTokens } from '@/lib/api';
 import { NextResponse } from 'next/server';
+import { encode } from 'base-64';
 
-export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const code = searchParams.get('code');
-  const error = searchParams.get('error');
-
-  if (error) {
-    return NextResponse.redirect(new URL('/login?error=auth_failed', request.url));
-  }
-
+export async function POST(request) {
   try {
-    const tokens = await getAuthToken(code);
-    setTokens(tokens.access_token, tokens.refresh_token);
+    const { username, password } = await request.json();
     
-    const response = NextResponse.redirect(new URL('/dashboard', request.url));
-    response.cookies.set('access_token', tokens.access_token, { httpOnly: true });
-    response.cookies.set('refresh_token', tokens.refresh_token, { httpOnly: true });
+    // Use the client credentials from environment variables
+    const clientId = process.env.DRCHRONO_CLIENT_ID;
+    const clientSecret = process.env.DRCHRONO_CLIENT_SECRET;
     
-    return response;
-  } catch (err) {
-    console.error('Auth error:', err);
-    return NextResponse.redirect(new URL('/login?error=auth_failed', request.url));
+    // Create basic auth header
+    const credentials = `${clientId}:${clientSecret}`;
+    const base64Credentials = encode(credentials);
+    
+    // Make request to DrChrono token endpoint using resource owner password credentials grant
+    const response = await fetch('https://drchrono.com/o/token/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${base64Credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'password',
+        username: username,
+        password: password,
+      }),
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: data.error_description || 'Authentication failed' },
+        { status: response.status }
+      );
+    }
+    
+    return NextResponse.json({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_in: data.expires_in,
+    });
+    
+  } catch (error) {
+    console.error('Auth API error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

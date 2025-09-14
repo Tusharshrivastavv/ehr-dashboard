@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { patientsApi, appointmentsApi } from '@/lib/api';
 
 export default function Dashboard() {
@@ -10,29 +11,45 @@ export default function Dashboard() {
     recentAppointments: []
   });
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [patientsData, appointmentsData] = await Promise.all([
-          patientsApi.list({ limit: 1 }),
-          appointmentsApi.list({ date: new Date().toISOString().split('T')[0] })
-        ]);
-
-        setStats({
-          patients: patientsData.count || 0,
-          appointments: appointmentsData.count || 0,
-          recentAppointments: appointmentsData.results?.slice(0, 5) || []
-        });
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    // Check if user is authenticated
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
 
     fetchData();
-  }, []);
+  }, [router]);
+
+  const fetchData = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      const [patientsData, appointmentsData] = await Promise.all([
+        patientsApi.list({ limit: 1 }),
+        appointmentsApi.list({ date: today })
+      ]);
+
+      setStats({
+        patients: patientsData.count || 0,
+        appointments: appointmentsData.results?.length || 0,
+        recentAppointments: appointmentsData.results?.slice(0, 5) || []
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      if (error.message.includes('401') || error.message.includes('403')) {
+        // Token expired or invalid
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        router.push('/login');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -91,7 +108,7 @@ export default function Dashboard() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {new Date(appt.scheduled_time).toLocaleTimeString()}
+                        {appt.scheduled_time ? new Date(appt.scheduled_time).toLocaleTimeString() : 'N/A'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
